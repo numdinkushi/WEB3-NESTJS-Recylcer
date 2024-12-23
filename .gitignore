@@ -11,3 +11,21 @@
 
 #!.yarn/cache
 .pnp.*
+
+node_modules
+build
+dist
+.next
+.env
+
+# Ignore .env files in apps/api and apps/web
+apps/api/.env
+apps/web/.env
+
+# Ignore node_modules directories in apps/api and apps/web
+apps/api/node_modules/
+apps/web/node_modules/
+
+
+.nx/cache
+.nx/workspace-data
