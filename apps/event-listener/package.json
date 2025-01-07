@@ -1,0 +1,19 @@
+{
+  "name": "event-listener",
+  "packageManager": "yarn@4.5.2",
+  "devDependencies": {
+    "dotenv": "^16.4.7",
+    "tsx": "^4.19.2"
+  },
+  "type": "module",
+  "dependencies": {
+    "ethers": "^6.13.5"
+  },
+  "compilerOptions": {
+    "module": "ESNext",
+    "target": "ES2020"
+  },
+  "scripts": {
+    "listen": "tsx index.ts"
+  }
+}
