@@ -14,6 +14,6 @@
     "target": "ES2020"
   },
   "scripts": {
-   "listen": "tsx index.ts"
+    "listen": "tsx index.ts"
   }
 }
