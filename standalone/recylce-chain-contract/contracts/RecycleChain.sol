@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "solana";
+import  '@openzeppelin/contracts/utils/Strings.sol';
 
 contract RecycleChain {
    uint256 public productCounter;
@@ -159,6 +160,19 @@ contract RecycleChain {
 
       string[] memory newProductItemIds = new string[](_quantity);
       // Update the product quantity (state change)
-      products[_productId].quantity += _quantity;
+      // for (uint256 i = 0; i < _quantity; i++) {
+      //    string memory itemId = string(
+      //       abi.encodePacked(
+      //          Strings.toString(_productId),
+      //          "_",
+      //          Strings.toString(products[_productId].quantity + i + 1)
+      //       )
+      //    );
+      // }
+      ProductItem memory newItem = ProductItem({
+         id: itemId,
+         productId: _productId,
+         status: ProductStatus.MANUFACTURED
+      });
    }
 }
