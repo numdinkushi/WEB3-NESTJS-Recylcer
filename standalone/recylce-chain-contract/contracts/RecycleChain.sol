@@ -1,178 +1,229 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "solana";
-import  '@openzeppelin/contracts/utils/Strings.sol';
+import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract RecycleChain {
-   uint256 public productCounter;
-   address public owner;
-   address public authority; // Address of the authority account
+    uint256 public productCounter;
+    address public owner;
 
-   enum ProductStatus {
-      MANUFACTURED,
-      SOLD,
-      RETURNED,
-      RECYCLED
-   }
+    constructor() {
+        productCounter = 0;
+        owner = payable(msg.sender);
+    }
 
-   struct Product {
-      uint256 id;
-      string name;
-      uint256 quantity;
-      address manufacturer;
-      ToxicItem[] toxicItems;
-   }
+    enum ProductStatus {
+        MANUFACTURED,
+        SOLD,
+        RETURNED,
+        RECYCLED
+    }
 
-   struct ToxicItem {
-      string name;
-      uint256 weight;
-   }
+    struct Product {
+        uint256 id;
+        string name;
+        uint256 quantity;
+        address manufacturer;
+        ToxicItem[] toxicItems;
+    }
 
-   struct ProductItem {
-      string id;
-      uint256 productId;
-      ProductStatus status;
-   }
+    struct ToxicItem {
+        string name;
+        uint256 weight;
+    }
 
-   struct Manufacturer {
-      string name;
-      string location;
-      string contact;
-   }
+    struct ProductItem {
+        string id;
+        uint256 productId;
+        ProductStatus status;
+    }
 
-   Product[] public products;
-   ProductItem[] public productItems;
-   Manufacturer[] public manufacturers;
+    struct Manufacturer {
+        string name;
+        string location;
+        string contact;
+    }
 
-   event ProductCreated(uint256 productId, string name, address manufacturer);
-   event ToxicItemCreated(uint256 productId, string name, uint256 weight);
-   event ProductItemAdded(string[] itemIds, uint256 productId);
-   event ProductItemsStatusChanged(string[] itemIds, ProductStatus status);
-   event ManufacturerRegistered(
-      address manufacturer, string name, string location, string contact
-   );
+    mapping(uint256 => Product) public products;
+    mapping(string => ProductItem) public productItems;
+    mapping(address => string[]) public inventory;
+    mapping(address => Manufacturer) public manufacturers;
 
-   // Constructor function, accepting the authority address
-   constructor(address _owner, address _authority) {
-      productCounter = 0;
-      owner = _owner;
-      authority = _authority; // Set the authority account
-   }
+    event ProductCreated(uint256 productId, string name, address manufacturer);
+    event ToxicItemCreated(uint256 productId, string name, uint256 weight);
+    event ProductItemAdded(string[] itemIds, uint256 productId);
+    event ProductItemsStatusChanged(string[] itemIds, ProductStatus status);
+    event ManufacturerRegistered(
+        address manufacturer,
+        string name,
+        string location,
+        string contact
+    );
 
-   // Register a manufacturer, requiring the authority to be the signer
-   @signer(authorityAccount)
-   function registerManufacturer(
-      address manufacturerAddress,
-      string memory _name,
-      string memory _location,
-      string memory _contact
-   ) external {
-      assert(
-         tx.accounts.authorityAccount.key == authority
-            && tx.accounts.authorityAccount.is_signer
-      );
-      require(bytes(_name).length > 0, "Manufacturer name cannot be empty");
+    function registerManufacturer(
+        string memory _name,
+        string memory _location,
+        string memory _contact
+    ) public {
+        require(bytes(_name).length > 0, "Manufacturer's name cannot be empty");
+        require(
+            bytes(manufacturers[msg.sender].name).length == 0,
+            "Manufacturer already registered"
+        );
 
-      // Check if the manufacturer is already registered
-      for (uint256 i = 0; i < manufacturers.length; i++) {
-         require(
-            manufacturers[i].name != _name, "Manufacturer already registered"
-         );
-      }
+        Manufacturer memory newManufacturer = Manufacturer({
+            name: _name,
+            location: _location,
+            contact: _contact
+        });
 
-      Manufacturer memory newManufacturer =
-         Manufacturer({name: _name, location: _location, contact: _contact});
+        manufacturers[msg.sender] = newManufacturer;
 
-      manufacturers.push(newManufacturer);
-      emit ManufacturerRegistered(
-         manufacturerAddress, _name, _location, _contact
-      );
-   }
+        emit ManufacturerRegistered(msg.sender, _name, _location, _contact);
+    }
 
-   // Add a product, requiring the authority to be the signer
-   @signer(authorityAccount)
-   function addProduct(
-      string memory _name,
-      string[] memory toxicNames,
-      uint256[] memory toxicWeights
-   ) external {
-      assert(
-         tx.accounts.authorityAccount.key == authority
-            && tx.accounts.authorityAccount.is_signer
-      );
-      require(bytes(_name).length > 0, "Product name cannot be empty");
-      require(
-         toxicNames.length == toxicWeights.length, "Toxic array items mismatch"
-      );
+    function addProduct(
+        string memory _name,
+        string[] memory toxicNames,
+        uint256[] memory toxicWeights
+    ) public {
+        require(bytes(_name).length > 0, "Product name cannot be empty");
+        require(
+            toxicNames.length == toxicWeights.length,
+            "Toxic items array mismatch"
+        );
+        require(
+            bytes(manufacturers[msg.sender].name).length > 0,
+            "Manufacturer not registered"
+        );
+        productCounter++;
+        uint256 productId = productCounter;
 
-      // Check if the manufacturer is registered
-      bool isRegistered = false;
-      address sender = tx.accounts.authorityAccount.key; // Get the signer account
+        Product storage newProduct = products[productId];
+        newProduct.id = productId;
+        newProduct.name = _name;
+        newProduct.quantity = 0;
+        newProduct.manufacturer = msg.sender;
 
-      for (uint256 i = 0; i < manufacturers.length; i++) {
-         // Match the sender address to the manufacturer's registered name
-         if (
-            keccak256(abi.encodePacked(manufacturers[i].name))
-               == keccak256(abi.encodePacked(sender))
-         ) {
-            isRegistered = true;
-            break;
-         }
-      }
+        emit ProductCreated(productId, _name, msg.sender);
 
-      require(isRegistered, "Manufacturer not registered");
+        for (uint256 i = 0; i < toxicNames.length; i++) {
+            ToxicItem memory toxicItem = ToxicItem({
+                name: toxicNames[i],
+                weight: toxicWeights[i]
+            });
 
-      productCounter++;
+            products[productId].toxicItems.push(toxicItem);
 
-      uint256 productId = productCounter; // Increment productId
+            emit ToxicItemCreated(productId, toxicItem.name, toxicItem.weight);
+        }
+    }
 
-      Product storage newProduct = products[productId];
-      newProduct.id = productId;
-      newProduct.name = _name;
-      newProduct.quantity = 0;
-      newProduct.manufacturer = sender; // Use sender's address
+    function addProductItems(uint256 _productId, uint256 _quantity) public {
+        require(
+            _quantity <= 10,
+            "Cannot add more than 10 product items at a time"
+        );
 
-      emit ProductCreated(productId, _name, sender);
+        require(
+            msg.sender == products[_productId].manufacturer,
+            "Only the product manufacturer can add product items"
+        );
 
-      for (uint256 i = 0; i < toxicNames.length; i++) {
-         ToxicItem memory toxicItem =
-            ToxicItem({name: toxicNames[i], weight: toxicWeights[i]});
+        require(
+            products[_productId].id == _productId,
+            "Product does not exist."
+        );
 
-         products[productId].toxicItems.push(toxicItem);
-      }
-   }
+        string[] memory newProductItemIds = new string[](_quantity);
 
-   @signer(authorityAccount)
-   function addProductItems(uint256 _productId, uint256 _quantity) external {
-      address sender = tx.accounts.authorityAccount.key; // Get the signer account
+        for (uint256 i = 0; i < _quantity; i++) {
+            string memory itemId = string(
+                abi.encodePacked(
+                    Strings.toString(_productId),
+                    "-",
+                    Strings.toString(products[_productId].quantity + i + 1)
+                )
+            );
 
-      require(
-         _quantity <= 10, "Cannot add more than 10 product items at a time"
-      );
+            ProductItem memory newItem = ProductItem({
+                id: itemId,
+                productId: _productId,
+                status: ProductStatus.MANUFACTURED
+            });
 
-      require(
-         sender == products[_productId].manufacturer,
-         "Only the product manufacturer can add product items"
-      );
+            productItems[itemId] = newItem;
+            inventory[msg.sender].push(itemId);
+            newProductItemIds[i] = itemId;
+        }
 
-      require(products[_productId].id == _productId, "Product does not exist.");
+        products[_productId].quantity += _quantity;
 
-      string[] memory newProductItemIds = new string[](_quantity);
-      // Update the product quantity (state change)
-      // for (uint256 i = 0; i < _quantity; i++) {
-      //    string memory itemId = string(
-      //       abi.encodePacked(
-      //          Strings.toString(_productId),
-      //          "_",
-      //          Strings.toString(products[_productId].quantity + i + 1)
-      //       )
-      //    );
-      // }
-      ProductItem memory newItem = ProductItem({
-         id: itemId,
-         productId: _productId,
-         status: ProductStatus.MANUFACTURED
-      });
-   }
+        emit ProductItemAdded(newProductItemIds, _productId);
+    }
+
+    function sellProductItems(string[] memory itemIds) public {
+        for (uint256 i = 0; i < itemIds.length; i++) {
+            string memory itemId = itemIds[i];
+            uint256 productId = productItems[itemId].productId;
+
+            require(
+                productItems[itemId].productId != 0,
+                "Product item does not exist"
+            );
+
+            //check that the sender is the manufacturer of the product
+            require(
+                msg.sender == products[productId].manufacturer,
+                "Only the product manufacturer can sell product items."
+            );
+
+            require(
+                productItems[itemIds[i]].status == ProductStatus.MANUFACTURED,
+                "Product Item cannot be sold"
+            );
+
+            productItems[itemIds[i]].status = ProductStatus.SOLD;
+        }
+
+        emit ProductItemsStatusChanged(itemIds, ProductStatus.SOLD);
+    }
+
+    function returnProductItems(string[] memory itemIds) public {
+        for (uint256 i = 0; i < itemIds.length; i++) {
+            uint256 productId = productItems[itemIds[i]].productId;
+
+            require(
+                productItems[itemIds[i]].status == ProductStatus.SOLD,
+                "Product Item cannot be returned"
+            );
+
+            require(
+                msg.sender == products[productId].manufacturer,
+                "Only the product manufacturer can sell product items."
+            );
+            productItems[itemIds[i]].status = ProductStatus.RETURNED;
+        }
+
+        emit ProductItemsStatusChanged(itemIds, ProductStatus.RETURNED);
+    }
+
+    function recycleProductItems(string[] memory itemIds) public {
+        for (uint256 i = 0; i < itemIds.length; i++) {
+            uint256 productId = productItems[itemIds[i]].productId;
+
+            require(
+                productItems[itemIds[i]].status == ProductStatus.RETURNED,
+                "Product Item cannot be recycled"
+            );
+
+            require(
+                msg.sender == products[productId].manufacturer,
+                "Only the product manufacturer can sell product items."
+            );
+            productItems[itemIds[i]].status = ProductStatus.RECYCLED;
+        }
+
+        emit ProductItemsStatusChanged(itemIds, ProductStatus.RECYCLED);
+    }
 }
