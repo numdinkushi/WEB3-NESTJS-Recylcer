@@ -249,12 +249,15 @@ export class ListenerService implements OnModuleInit, OnModuleDestroy {
     })
 
     const productItemUpdates = this.prisma.productItem.createMany({
-      data: productItemIds.map((id) => ({
-        id,
-        productId: productId.toString(),
-        status: ProductStatus.MANUFACTURED,
-        timestamp,
-      })),
+      data: productItemIds.map((id) => {
+        console.log(555, id)
+        return {
+          id,
+          productId: productId.toString(),
+          status: ProductStatus.MANUFACTURED,
+          timestamp,
+        }
+      }),
     })
 
     return this.prisma.$transaction([productItemUpdates, ...transactions])
@@ -272,11 +275,12 @@ export class ListenerService implements OnModuleInit, OnModuleDestroy {
     const status = statusMapping[+statusIndex.toString()] as ProductStatus
 
     const transactions = productItemIds.map((productItemId) => {
+      console.log(43333, productItemId)
       return this.prisma.transaction.create({
-        // @ts-expect-error // TODO:
+
         data: {
           status,
-          productItemId,
+          id: productItemId,
           timestamp,
         },
       })
@@ -285,7 +289,7 @@ export class ListenerService implements OnModuleInit, OnModuleDestroy {
     const productItemUpdates = this.prisma.productItem.updateMany({
       data: { status, timestamp },
       where: {
-        id: { in: productItemIds },
+        productId: { in: productItemIds },
         // productId: { equals: productItemIds[0].split('-')[0] } // assuming product id is first part of productItemId
       },
     })
