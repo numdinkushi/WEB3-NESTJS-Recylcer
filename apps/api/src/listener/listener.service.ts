@@ -277,7 +277,6 @@ export class ListenerService implements OnModuleInit, OnModuleDestroy {
     const transactions = productItemIds.map((productItemId) => {
       console.log(43333, productItemId)
       return this.prisma.transaction.create({
-
         data: {
           status,
           id: productItemId,
