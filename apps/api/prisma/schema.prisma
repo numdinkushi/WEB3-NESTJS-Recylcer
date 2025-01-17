@@ -60,9 +60,8 @@ model ProductItem {
 }
 
 model Transaction {
-  id        String   @unique
-  timestamp DateTime
-
+  id            String        @unique
+  timestamp     DateTime
   ProductItem   ProductItem?  @relation(fields: [productItemId], references: [id])
   productItemId String?
   status        ProductStatus
